@@ -20,7 +20,7 @@ pub trait ObjectType {
     }
 }
 
-pub trait DocumentType: ObjectType + InstanceDocumentMetadata {
+pub trait DocumentType: ObjectType + InstanceDocumentMetadata + PartialIdentity {
     /** Get a serialisable instance of the type mapping as an indexable type */
     fn index_mapping() -> IndexDocumentMapping<Self::Mapping> {
         IndexDocumentMapping::default()
@@ -33,7 +33,7 @@ pub trait StaticDocumentMetadata: InstanceDocumentMetadata {
     fn static_ty() -> &'static str;
 }
 
-pub trait InstanceDocumentMetadata: PartialIdentity {
+pub trait InstanceDocumentMetadata {
     fn index(&self) -> Cow<str>;
 
     fn ty(&self) -> Cow<str>;
