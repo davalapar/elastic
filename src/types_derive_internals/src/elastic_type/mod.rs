@@ -9,6 +9,19 @@ struct ElasticDocumentMapping {
     impl_block: Tokens,
 }
 
+/*
+TODO: Support new trait design
+
+ObjectMapping
+ObjectType
+
+DocumentType
+InstanceDocumentMetadata
+StaticDocumentMetadata
+PartialIdentity
+Identity
+*/
+
 /**
 Derive `DocumentType` for the given input.
 
@@ -48,6 +61,11 @@ pub fn expand_derive(crate_root: Tokens, input: &syn::MacroInput) -> Result<Vec<
         &mapping.ident,
     );
 
+    let doc_meta_impl_block = get_metadata_impl_block(
+        &crate_root,
+        input
+    );
+
     let doc_id_impl_block = get_id_impl_block(
         &crate_root,
         input,
@@ -76,6 +94,8 @@ pub fn expand_derive(crate_root: Tokens, input: &syn::MacroInput) -> Result<Vec<
             #doc_ty_impl_block
 
             #doc_id_impl_block
+
+            #doc_meta_impl_block
 
             #props_impl_block
         };
@@ -112,7 +132,7 @@ fn get_mapping(crate_root: &Tokens, input: &syn::MacroInput) -> ElasticDocumentM
     // Implement DocumentMapping for the mapping
     fn impl_document_mapping(crate_root: &Tokens, mapping: &syn::Ident, properties: &syn::Ident) -> Tokens {
         quote!(
-            impl #crate_root::derive::DocumentMapping for #mapping {
+            impl #crate_root::derive::ObjectMapping for #mapping {
                 type Properties = #properties;
             }
         )
@@ -144,13 +164,34 @@ fn get_doc_ty_impl_block(
     mapping: &syn::Ident,
     properties: &syn::Ident)
 -> Tokens {
-    struct ElasticDocumentTypeMethods {
+    let doc_ty = &item.ident;
+
+    quote!(
+        impl #crate_root::derive::ObjectType for #doc_ty {
+            type Mapping = #mapping;
+            type Properties = #properties;
+        }
+
+        impl #crate_root::derive::DocumentType for #doc_ty {
+
+        }
+    )
+}
+
+// Implement DocumentMetadata for the type being derived with the mapping
+fn get_metadata_impl_block(
+    crate_root: &Tokens,
+    item: &syn::MacroInput)
+-> Tokens {
+    struct ElasticMetadataMethods {
         index: Tokens,
+        index_is_static: bool,
         ty: Tokens,
+        ty_is_static: bool,
     }
 
     // Get the default method blocks for `DocumentType`
-    fn get_doc_type_methods(item: &syn::MacroInput) -> ElasticDocumentTypeMethods {
+    fn get_doc_type_methods(item: &syn::MacroInput) -> ElasticMetadataMethods {
         // Get the default name for the indexed elasticsearch type name
         fn get_elastic_type_name(item: &syn::MacroInput) -> syn::Lit {
             syn::Lit::Str(
@@ -159,45 +200,73 @@ fn get_doc_ty_impl_block(
             )
         }
 
-        let index_expr = get_method_from_struct(item, "index")
-            .unwrap_or_else(|| {
-                let name = get_elastic_type_name(item);
-                quote!(#name)
-            });
+        let (index, index_is_static) = {
+            match get_method_from_struct(item, "index") {
+                Some(MethodFromStruct::Literal(name)) => (name, true),
+                Some(MethodFromStruct::Expr(expr)) => (quote!(#expr(self)), false),
+                _ => {
+                    let name = get_elastic_type_name(item);
+                    (quote!(#name), true)
+                },
+            }
+        };
 
-        let ty = get_method_from_struct(item, "ty")
-            .map(|tokens| quote!(
-                fn ty() -> &'static str {
-                    (#tokens).into()
-                }
-            ))
-            .unwrap_or_else(Tokens::new);
+        let (ty, ty_is_static) = {
+            match get_method_from_struct(item, "ty") {
+                Some(MethodFromStruct::Literal(name)) => (name, true),
+                Some(MethodFromStruct::Expr(method)) => (quote!(#method(self)), false),
+                _ => (quote!("_doc"), true),
+            }
+        };
 
-        ElasticDocumentTypeMethods {
-            index: quote!(
-                fn index() -> &'static str {
-                    (#index_expr).into()
-                }
-            ),
+        ElasticMetadataMethods {
+            index,
+            index_is_static,
             ty,
+            ty_is_static,
         }
     }
 
     let doc_ty = &item.ident;
-    let ElasticDocumentTypeMethods {
+    let ElasticMetadataMethods {
         ref index,
+        index_is_static,
         ref ty,
+        ty_is_static,
     } = get_doc_type_methods(item);
 
-    quote!(
-        impl #crate_root::derive::DocumentType for #doc_ty {
-            type Mapping = #mapping;
-            type Properties = #properties;
+    let instance_block = quote!(
+        impl #crate_root::derive::InstanceDocumentMetadata for #doc_ty {
+            fn index(&self) -> ::std::borrow::Cow<str> {
+                (#index).into()
+            }
 
-            #index
-
-            #ty
+            fn ty(&self) -> ::std::borrow::Cow<str> {
+                (#ty).into()
+            }
         }
+    );
+
+    let static_block = if index_is_static && ty_is_static {
+        Some(quote!(
+            impl #crate_root::derive::StaticDocumentMetadata for #doc_ty {
+                fn static_index() -> &'static str {
+                    #index
+                }
+
+                fn static_ty() -> &'static str {
+                    #ty
+                }
+            }
+        ))
+    } else {
+        None
+    };
+
+    quote!(
+        #instance_block
+
+        #static_block
     )
 }
 
@@ -209,22 +278,26 @@ fn get_id_impl_block(
     let doc_ty = &item.ident;
 
     get_method_from_struct(item, "id")
-        .or_else(|| get_method_from_fields(fields, "id"))
+        .map(|id_expr| match id_expr {
+            MethodFromStruct::Literal(_) => panic!("id attributes on a struct definition must be of the form #[id(expr = \"expression\")]"),
+            MethodFromStruct::Expr(method) => quote!(#method (self)),
+        })
+        .or_else(|| get_method_from_fields(fields, "id").map(|field| quote!(&self . #field)))
         .map(|id_expr| quote!(
-            impl #crate_root::derive::Identifiable for #doc_ty {
+            impl #crate_root::derive::Identity for #doc_ty {
                 fn id(&self) -> ::std::borrow::Cow<str> {
-                    (&self . #id_expr).into()
+                    (#id_expr).into()
                 }
             }
 
-            impl #crate_root::derive::PartialIdentifiable for #doc_ty {
+            impl #crate_root::derive::PartialIdentity for #doc_ty {
                 fn partial_id(&self) -> ::std::option::Option<::std::borrow::Cow<str>> {
-                    Some((&self . #id_expr).into())
+                    Some((#id_expr).into())
                 }
             }
         ))
         .unwrap_or_else(|| quote!(
-            impl #crate_root::derive::PartialIdentifiable for #doc_ty {
+            impl #crate_root::derive::PartialIdentity for #doc_ty {
                 fn partial_id(&self) -> ::std::option::Option<::std::borrow::Cow<str>> {
                     None
                 }
@@ -302,10 +375,16 @@ quick_error! {
     }
 }
 
+enum MethodFromStruct {
+    Literal(Tokens),
+    Expr(Tokens),
+
+}
+
 // Get the mapping ident supplied by an #[elastic()] attribute or create a default one
 // Parses #[elastic(method = $lit)]
 // Parses #[elastic(method(expr = $expr))]
-fn get_method_from_struct(item: &syn::MacroInput, method: &str) -> Option<Tokens> {
+fn get_method_from_struct(item: &syn::MacroInput, method: &str) -> Option<MethodFromStruct> {
     let val = get_elastic_meta_items(&item.attrs);
     
     // Attempt to get a literal 
@@ -314,7 +393,7 @@ fn get_method_from_struct(item: &syn::MacroInput, method: &str) -> Option<Tokens
         .filter_map(|meta| expect_name_value(method, meta))
         .next()
     {
-        return Some(quote!(#lit))
+        return Some(MethodFromStruct::Literal(quote!(#lit)))
     }
 
     if let Some(expr) = val
@@ -325,7 +404,7 @@ fn get_method_from_struct(item: &syn::MacroInput, method: &str) -> Option<Tokens
         .next()
         .and_then(|expr| get_tokens_from_lit(expr).ok())
     {
-        return Some(quote!(#expr))
+        return Some(MethodFromStruct::Expr(quote!(#expr)))
     }
 
     None

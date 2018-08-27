@@ -10,11 +10,11 @@ use serde::Serialize;
 use chrono::{DateTime, Utc};
 use chrono::format::{self, Parsed};
 
-use private::field::{DocumentField, FieldMapping, FieldType};
+use private::field::{SerializeFieldMapping, FieldMapping, FieldType};
 
 pub use date::{DateFormat, DateValue, FormattedDate, ParseError};
-pub use document::{DocumentType, Identifiable, PartialIdentifiable};
-pub use document::mapping::{DocumentMapping, PropertiesMapping};
+pub use document::{ObjectType, DocumentType, InstanceDocumentMetadata, StaticDocumentMetadata, Identity, PartialIdentity};
+pub use document::mapping::{ObjectMapping, PropertiesMapping};
 
 pub use chrono::format::{Fixed, Item, Numeric, Pad};
 pub use serde::ser::SerializeStruct;
@@ -37,9 +37,9 @@ where
     S: SerializeStruct,
     TMapping: FieldMapping<TPivot>,
     TPivot: Default,
-    DocumentField<TMapping, TPivot>: Serialize,
+    SerializeFieldMapping<TMapping, TPivot>: Serialize,
 {
-    state.serialize_field(field, &DocumentField::<TMapping, TPivot>::default())
+    state.serialize_field(field, &SerializeFieldMapping::<TMapping, TPivot>::default())
 }
 
 /**
@@ -52,9 +52,9 @@ pub fn standalone_field_ser<TMapping, TPivot>(_: TMapping) -> Result<String, ser
 where
     TMapping: FieldMapping<TPivot>,
     TPivot: Default,
-    DocumentField<TMapping, TPivot>: Serialize,
+    SerializeFieldMapping<TMapping, TPivot>: Serialize,
 {
-    serde_json::to_string(&DocumentField::<TMapping, TPivot>::default())
+    serde_json::to_string(&SerializeFieldMapping::<TMapping, TPivot>::default())
 }
 
 /** Parse a date string using an owned slice of items. */

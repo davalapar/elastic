@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 use std::marker::PhantomData;
-use serde::ser::{Serialize, SerializeStruct};
+use serde::ser::SerializeStruct;
 use serde_json::Value;
-use super::mapping::{DocumentMapping, PropertiesMapping};
+use super::mapping::{ObjectMapping, PropertiesMapping};
 
 /**
 An indexable Elasticsearch type.
@@ -10,53 +10,43 @@ An indexable Elasticsearch type.
 This trait is implemented for the type being mapped, rather than the mapping
 type itself.
 */
-pub trait DocumentType {
+pub trait ObjectType {
     /** The mapping type for this document. */
-    type Mapping: DocumentMapping<Properties = Self::Properties>;
+    type Mapping: ObjectMapping<Properties = Self::Properties>;
 
     /** The properties type for this document. */
     type Properties: PropertiesMapping;
-
-    /**
-    Get the index for this type.
-    */
-    fn index() -> &'static str;
-
-    /**
-    Get the name for this type.
-    */
-    fn ty() -> &'static str {
-        "_doc".into()
-    }
 
     /** Get a serialisable instance of the type mapping as a field. */
     fn field_mapping() -> Self::Mapping {
         Self::Mapping::default()
     }
+}
 
+pub trait DocumentType: ObjectType + InstanceDocumentMetadata {
     /** Get a serialisable instance of the type mapping as an indexable type */
     fn index_mapping() -> IndexDocumentMapping<Self::Mapping> {
         IndexDocumentMapping::default()
     }
 }
 
-/**
-A type that might carry an id field.
-*/
-pub trait PartialIdentifiable {
-    /**
-    Maybe get the id for this type.
-    */
+pub trait StaticDocumentMetadata: InstanceDocumentMetadata {
+    fn static_index() -> &'static str;
+
+    fn static_ty() -> &'static str;
+}
+
+pub trait InstanceDocumentMetadata: PartialIdentity {
+    fn index(&self) -> Cow<str>;
+
+    fn ty(&self) -> Cow<str>;
+}
+
+pub trait PartialIdentity {
     fn partial_id(&self) -> Option<Cow<str>>;
 }
 
-/**
-A type that carries an id field.
-*/
-pub trait Identifiable: PartialIdentifiable {
-    /**
-    Get the id for this type.
-    */
+pub trait Identity: PartialIdentity {
     fn id(&self) -> Cow<str>;
 }
 
@@ -238,26 +228,22 @@ impl Serialize for Mappings {
 #[derive(Default)]
 pub struct IndexDocumentMapping<TMapping>
 where
-    TMapping: DocumentMapping,
+    TMapping: ObjectMapping,
 {
     _m: PhantomData<TMapping>,
 }
 
 /** Mapping for an anonymous json object. */
 #[derive(Default)]
-pub struct ValueDocumentMapping;
+pub struct ValueObjectMapping;
 
-impl DocumentMapping for ValueDocumentMapping {
+impl ObjectMapping for ValueObjectMapping {
     type Properties = EmptyPropertiesMapping;
 }
 
-impl DocumentType for Value {
-    type Mapping = ValueDocumentMapping;
+impl ObjectType for Value {
+    type Mapping = ValueObjectMapping;
     type Properties = EmptyPropertiesMapping;
-
-    fn index() -> &'static str {
-        "value"
-    }
 }
 
 /** Mapping for an anonymous json object. */
@@ -277,70 +263,116 @@ impl PropertiesMapping for EmptyPropertiesMapping {
     }
 }
 
-impl<'a, TDocument, TMapping> DocumentType for &'a TDocument
+impl<'a, TObject, TMapping> ObjectType for &'a TObject
 where
-    TDocument: DocumentType<Mapping = TMapping, Properties = TMapping::Properties> + Serialize,
-    TMapping: DocumentMapping,
+    TObject: ObjectType<Mapping = TMapping, Properties = TMapping::Properties>,
+    TMapping: ObjectMapping,
 {
     type Mapping = TMapping;
-    type Properties = TDocument::Properties;
+    type Properties = TObject::Properties;
+}
 
-    fn index() -> &'static str {
-        TDocument::index()
+impl<'a, TDocument> DocumentType for &'a TDocument
+where
+    TDocument: DocumentType,
+{ }
+
+impl<'a, TDocument> InstanceDocumentMetadata for &'a TDocument
+where
+    TDocument: InstanceDocumentMetadata,
+{
+    fn index(&self) -> Cow<str> {
+        (*self).index()
     }
 
-    fn ty() -> &'static str {
-        TDocument::ty()
+    fn ty(&self) -> Cow<str> {
+        (*self).ty()
     }
 }
 
-impl<'a, TIdentifiable> PartialIdentifiable for &'a TIdentifiable
+impl<'a, TDocument> StaticDocumentMetadata for &'a TDocument
 where
-    TIdentifiable: PartialIdentifiable,
+    TDocument: StaticDocumentMetadata,
+{
+    fn static_index() -> &'static str {
+        TDocument::static_index()
+    }
+
+    fn static_ty() -> &'static str {
+        TDocument::static_ty()
+    }
+}
+
+impl<'a, TId> PartialIdentity for &'a TId
+where
+    TId: PartialIdentity,
 {
     fn partial_id(&self) -> Option<Cow<str>> {
         (*self).partial_id()
     }
 }
 
-impl<'a, TIdentifiable> Identifiable for &'a TIdentifiable
+impl<'a, TId> Identity for &'a TId
 where
-    TIdentifiable: Identifiable,
+    TId: Identity,
 {
     fn id(&self) -> Cow<str> {
         (*self).id()
     }
 }
 
-impl<'a, TDocument, TMapping> DocumentType for Cow<'a, TDocument>
+impl<'a, TObject, TMapping> ObjectType for Cow<'a, TObject>
 where
-    TDocument: DocumentType<Mapping = TMapping, Properties = TMapping::Properties> + Serialize + Clone,
-    TMapping: DocumentMapping,
+    TObject: ObjectType<Mapping = TMapping, Properties = TMapping::Properties> + Clone,
+    TMapping: ObjectMapping,
 {
     type Mapping = TMapping;
-    type Properties = TDocument::Properties;
+    type Properties = TObject::Properties;
+}
 
-    fn index() -> &'static str {
-        TDocument::index()
+impl<'a, TDocument> DocumentType for Cow<'a, TDocument>
+where
+    TDocument: DocumentType + Clone,
+{ }
+
+impl<'a, TDocument> InstanceDocumentMetadata for Cow<'a, TDocument>
+where
+    TDocument: InstanceDocumentMetadata + Clone,
+{
+    fn index(&self) -> Cow<str> {
+        self.as_ref().index()
     }
 
-    fn ty() -> &'static str {
-        TDocument::ty()
+    fn ty(&self) -> Cow<str> {
+        self.as_ref().ty()
     }
 }
 
-impl<'a, TIdentifiable> PartialIdentifiable for Cow<'a, TIdentifiable>
+impl<'a, TDocument> StaticDocumentMetadata for Cow<'a, TDocument>
 where
-    TIdentifiable: PartialIdentifiable + Clone,
+    TDocument: StaticDocumentMetadata + Clone,
+{
+    fn static_index() -> &'static str {
+        TDocument::static_index()
+    }
+
+    fn static_ty() -> &'static str {
+        TDocument::static_ty()
+    }
+}
+
+impl<'a, TId> PartialIdentity for Cow<'a, TId>
+where
+    TId: PartialIdentity + Clone,
 {
     fn partial_id(&self) -> Option<Cow<str>> {
         self.as_ref().partial_id()
     }
 }
 
-impl<'a, TIdentifiable> Identifiable for Cow<'a, TIdentifiable>
+impl<'a, TId> Identity for Cow<'a, TId>
 where
-    TIdentifiable: Identifiable + Clone,
+    TId: Identity + Clone,
 {
     fn id(&self) -> Cow<str> {
         self.as_ref().id()
@@ -402,13 +434,13 @@ mod tests {
 
     #[derive(PartialEq, Debug, Default)]
     pub struct ManualCustomTypeMapping;
-    impl DocumentMapping for ManualCustomTypeMapping {
+    impl ObjectMapping for ManualCustomTypeMapping {
         type Properties = CustomType::Properties;
     }
 
     #[derive(PartialEq, Debug, Default)]
     pub struct AlternativeManualCustomTypeMapping;
-    impl DocumentMapping for AlternativeManualCustomTypeMapping {
+    impl ObjectMapping for AlternativeManualCustomTypeMapping {
         type Properties = CustomType::Properties;
 
         fn data_type() -> &str {

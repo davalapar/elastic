@@ -61,7 +61,7 @@ This will produce the following mapping:
 }
 # );
 # #[cfg(feature = "nightly")]
-# let mapping = serde_json::to_string(&DocumentField::from(MyStringMapping)).unwrap();
+# let mapping = serde_json::to_string(&SerializeFieldMapping::from(MyStringMapping)).unwrap();
 # #[cfg(not(feature = "nightly"))]
 # let mapping = json.clone();
 # assert_eq!(json, mapping);
@@ -400,7 +400,7 @@ impl Serialize for TextFieldMapping {
 mod private {
     use serde::{Serialize, Serializer};
     use serde::ser::SerializeStruct;
-    use private::field::{DocumentField, FieldMapping, FieldType};
+    use private::field::{SerializeFieldMapping, FieldMapping, FieldType};
     use super::{TextFieldType, TextMapping};
 
     #[derive(Default)]
@@ -417,14 +417,14 @@ mod private {
     where
         TMapping: TextMapping,
     {
-        type DocumentField = DocumentField<TMapping, TextPivot>;
+        type SerializeFieldMapping = SerializeFieldMapping<TMapping, TextPivot>;
 
         fn data_type() -> &'static str {
             "text"
         }
     }
 
-    impl<TMapping> Serialize for DocumentField<TMapping, TextPivot>
+    impl<TMapping> Serialize for SerializeFieldMapping<TMapping, TextPivot>
     where
         TMapping: FieldMapping<TextPivot> + TextMapping,
     {

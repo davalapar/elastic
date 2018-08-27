@@ -51,7 +51,7 @@ This will produce the following mapping:
 }
 # );
 # #[cfg(feature = "nightly")]
-# let mapping = serde_json::to_string(&DocumentField::from(MyIntegerMapping)).unwrap();
+# let mapping = serde_json::to_string(&SerializeFieldMapping::from(MyIntegerMapping)).unwrap();
 # #[cfg(not(feature = "nightly"))]
 # let mapping = json.clone();
 # assert_eq!(json, mapping);
@@ -113,7 +113,7 @@ macro_rules! number_mapping {
         mod $private_mod {
             use serde::Serialize;
             use serde::ser::SerializeStruct;
-            use private::field::{FieldType, DocumentField, FieldMapping};
+            use private::field::{FieldType, SerializeFieldMapping, FieldMapping};
             use super::{$field_trait, $mapping};
 
             #[derive(Default)]
@@ -127,12 +127,12 @@ macro_rules! number_mapping {
             impl<TMapping> FieldMapping<$pivot> for TMapping
                 where TMapping: $mapping
             {
-                type DocumentField = DocumentField<TMapping, $pivot>;
+                type SerializeFieldMapping = SerializeFieldMapping<TMapping, $pivot>;
 
                 fn data_type() -> &'static str { $datatype_name }
             }
 
-            impl<TMapping> Serialize for DocumentField<TMapping, $pivot>
+            impl<TMapping> Serialize for SerializeFieldMapping<TMapping, $pivot>
                 where TMapping: FieldMapping<$pivot> + $mapping
             {
                 fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where
@@ -247,7 +247,7 @@ mod tests {
     use serde_json;
 
     use prelude::*;
-    use private::field::{DocumentField, FieldType};
+    use private::field::{SerializeFieldMapping, FieldType};
 
     #[derive(Default, Clone)]
     pub struct MyIntegerMapping;
@@ -497,7 +497,7 @@ mod tests {
 
     #[test]
     fn serialise_mapping_integer_default() {
-        let ser = serde_json::to_string(&DocumentField::from(DefaultIntegerMapping)).unwrap();
+        let ser = serde_json::to_string(&SerializeFieldMapping::from(DefaultIntegerMapping)).unwrap();
 
         let expected = json_str!({
             "type": "integer"
@@ -508,7 +508,7 @@ mod tests {
 
     #[test]
     fn serialise_mapping_integer_custom() {
-        let ser = serde_json::to_string(&DocumentField::from(MyIntegerMapping)).unwrap();
+        let ser = serde_json::to_string(&SerializeFieldMapping::from(MyIntegerMapping)).unwrap();
 
         let expected = json_str!({
             "type": "integer",
@@ -526,7 +526,7 @@ mod tests {
 
     #[test]
     fn serialise_mapping_long_default() {
-        let ser = serde_json::to_string(&DocumentField::from(DefaultLongMapping)).unwrap();
+        let ser = serde_json::to_string(&SerializeFieldMapping::from(DefaultLongMapping)).unwrap();
 
         let expected = json_str!({
             "type": "long"
@@ -537,7 +537,7 @@ mod tests {
 
     #[test]
     fn serialise_mapping_long_custom() {
-        let ser = serde_json::to_string(&DocumentField::from(MyLongMapping)).unwrap();
+        let ser = serde_json::to_string(&SerializeFieldMapping::from(MyLongMapping)).unwrap();
 
         let expected = json_str!({
             "type": "long",
@@ -555,7 +555,7 @@ mod tests {
 
     #[test]
     fn serialise_mapping_short_default() {
-        let ser = serde_json::to_string(&DocumentField::from(DefaultShortMapping)).unwrap();
+        let ser = serde_json::to_string(&SerializeFieldMapping::from(DefaultShortMapping)).unwrap();
 
         let expected = json_str!({
             "type": "short"
@@ -566,7 +566,7 @@ mod tests {
 
     #[test]
     fn serialise_mapping_short_custom() {
-        let ser = serde_json::to_string(&DocumentField::from(MyShortMapping)).unwrap();
+        let ser = serde_json::to_string(&SerializeFieldMapping::from(MyShortMapping)).unwrap();
 
         let expected = json_str!({
             "type": "short",
@@ -584,7 +584,7 @@ mod tests {
 
     #[test]
     fn serialise_mapping_byte_default() {
-        let ser = serde_json::to_string(&DocumentField::from(DefaultByteMapping)).unwrap();
+        let ser = serde_json::to_string(&SerializeFieldMapping::from(DefaultByteMapping)).unwrap();
 
         let expected = json_str!({
             "type": "byte"
@@ -595,7 +595,7 @@ mod tests {
 
     #[test]
     fn serialise_mapping_byte_custom() {
-        let ser = serde_json::to_string(&DocumentField::from(MyByteMapping)).unwrap();
+        let ser = serde_json::to_string(&SerializeFieldMapping::from(MyByteMapping)).unwrap();
 
         let expected = json_str!({
             "type": "byte",
@@ -613,7 +613,7 @@ mod tests {
 
     #[test]
     fn serialise_mapping_double_default() {
-        let ser = serde_json::to_string(&DocumentField::from(DefaultDoubleMapping)).unwrap();
+        let ser = serde_json::to_string(&SerializeFieldMapping::from(DefaultDoubleMapping)).unwrap();
 
         let expected = json_str!({
             "type": "double"
@@ -624,7 +624,7 @@ mod tests {
 
     #[test]
     fn serialise_mapping_double_custom() {
-        let ser = serde_json::to_string(&DocumentField::from(MyDoubleMapping)).unwrap();
+        let ser = serde_json::to_string(&SerializeFieldMapping::from(MyDoubleMapping)).unwrap();
 
         let expected = json_str!({
             "type": "double",
@@ -642,7 +642,7 @@ mod tests {
 
     #[test]
     fn serialise_mapping_float_default() {
-        let ser = serde_json::to_string(&DocumentField::from(DefaultFloatMapping)).unwrap();
+        let ser = serde_json::to_string(&SerializeFieldMapping::from(DefaultFloatMapping)).unwrap();
 
         let expected = json_str!({
             "type": "float"
@@ -653,7 +653,7 @@ mod tests {
 
     #[test]
     fn serialise_mapping_float_custom() {
-        let ser = serde_json::to_string(&DocumentField::from(MyFloatMapping)).unwrap();
+        let ser = serde_json::to_string(&SerializeFieldMapping::from(MyFloatMapping)).unwrap();
 
         let expected = json_str!({
             "type": "float",

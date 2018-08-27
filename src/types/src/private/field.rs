@@ -29,11 +29,9 @@ where
     TPivot: Default,
 {
     /** Prevents infinite recursion when resolving `Serialize` on nested mappings. */
-    type DocumentField: Serialize + Default;
+    type SerializeFieldMapping: Serialize + Default;
 
-    fn data_type() -> &'static str {
-        "object"
-    }
+    fn data_type() -> &'static str;
 }
 
 /** Captures traits required for conversion between a field with mapping and a default counterpart. */
@@ -44,16 +42,14 @@ where
 {
 }
 
-// TODO: Rename `DocumentField` to `SerializeFieldMapping`
-
 /**
 A wrapper type used to work around conflicting implementations of `Serialize` for the various mapping traits.
 
-Serialising `DocumentField` will produce the mapping for the given type, suitable as the mapping of a field for a document.
-Individual implementations of `Serialize` for `DocumentField` are spread throughout other modules.
+Serialising `SerializeFieldMapping` will produce the mapping for the given type, suitable as the mapping of a field for a document.
+Individual implementations of `Serialize` for `SerializeFieldMapping` are spread throughout other modules.
 */
 #[derive(Default)]
-pub struct DocumentField<TMapping, TPivot>
+pub struct SerializeFieldMapping<TMapping, TPivot>
 where
     TMapping: FieldMapping<TPivot>,
     TPivot: Default,
@@ -61,12 +57,12 @@ where
     _m: PhantomData<(TMapping, TPivot)>,
 }
 
-impl<TMapping, TPivot> From<TMapping> for DocumentField<TMapping, TPivot>
+impl<TMapping, TPivot> From<TMapping> for SerializeFieldMapping<TMapping, TPivot>
 where
     TMapping: FieldMapping<TPivot>,
     TPivot: Default,
 {
     fn from(_: TMapping) -> Self {
-        DocumentField::<TMapping, TPivot>::default()
+        SerializeFieldMapping::<TMapping, TPivot>::default()
     }
 }

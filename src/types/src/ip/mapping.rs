@@ -57,7 +57,7 @@ This will produce the following mapping:
 }
 # );
 # #[cfg(feature = "nightly")]
-# let mapping = serde_json::to_string(&DocumentField::from(MyIpMapping)).unwrap();
+# let mapping = serde_json::to_string(&SerializeFieldMapping::from(MyIpMapping)).unwrap();
 # #[cfg(not(feature = "nightly"))]
 # let mapping = json.clone();
 # assert_eq!(json, mapping);
@@ -112,7 +112,7 @@ impl IpMapping for DefaultIpMapping {}
 mod private {
     use serde::{Serialize, Serializer};
     use serde::ser::SerializeStruct;
-    use private::field::{DocumentField, FieldMapping, FieldType};
+    use private::field::{SerializeFieldMapping, FieldMapping, FieldType};
     use super::{IpFieldType, IpMapping};
 
     #[derive(Default)]
@@ -129,14 +129,14 @@ mod private {
     where
         TMapping: IpMapping,
     {
-        type DocumentField = DocumentField<TMapping, IpPivot>;
+        type SerializeFieldMapping = SerializeFieldMapping<TMapping, IpPivot>;
 
         fn data_type() -> &'static str {
             "ip"
         }
     }
 
-    impl<TMapping> Serialize for DocumentField<TMapping, IpPivot>
+    impl<TMapping> Serialize for SerializeFieldMapping<TMapping, IpPivot>
     where
         TMapping: FieldMapping<IpPivot> + IpMapping,
     {
@@ -165,7 +165,7 @@ mod tests {
     use std::net::Ipv4Addr;
 
     use prelude::*;
-    use private::field::{DocumentField, FieldType};
+    use private::field::{SerializeFieldMapping, FieldType};
 
     #[derive(Default, Clone)]
     pub struct MyIpMapping;
@@ -198,7 +198,7 @@ mod tests {
 
     #[test]
     fn serialise_mapping_default() {
-        let ser = serde_json::to_string(&DocumentField::from(DefaultIpMapping)).unwrap();
+        let ser = serde_json::to_string(&SerializeFieldMapping::from(DefaultIpMapping)).unwrap();
 
         let expected = json_str!({
             "type": "ip"
@@ -209,7 +209,7 @@ mod tests {
 
     #[test]
     fn serialise_mapping_custom() {
-        let ser = serde_json::to_string(&DocumentField::from(MyIpMapping)).unwrap();
+        let ser = serde_json::to_string(&SerializeFieldMapping::from(MyIpMapping)).unwrap();
 
         let expected = json_str!({
             "type": "ip",

@@ -61,7 +61,7 @@ This will produce the following mapping:
 }
 # );
 # #[cfg(feature = "nightly")]
-# let mapping = serde_json::to_string(&DocumentField::from(MyStringMapping)).unwrap();
+# let mapping = serde_json::to_string(&SerializeFieldMapping::from(MyStringMapping)).unwrap();
 # #[cfg(not(feature = "nightly"))]
 # let mapping = json.clone();
 # assert_eq!(json, mapping);
@@ -300,7 +300,7 @@ impl Serialize for KeywordFieldMapping {
 mod private {
     use serde::{Serialize, Serializer};
     use serde::ser::SerializeStruct;
-    use private::field::{DocumentField, FieldMapping, FieldType};
+    use private::field::{SerializeFieldMapping, FieldMapping, FieldType};
     use super::{KeywordFieldType, KeywordMapping};
 
     #[derive(Default)]
@@ -317,14 +317,14 @@ mod private {
     where
         TMapping: KeywordMapping,
     {
-        type DocumentField = DocumentField<TMapping, KeywordPivot>;
+        type SerializeFieldMapping = SerializeFieldMapping<TMapping, KeywordPivot>;
 
         fn data_type() -> &'static str {
             "keyword"
         }
     }
 
-    impl<TMapping> Serialize for DocumentField<TMapping, KeywordPivot>
+    impl<TMapping> Serialize for SerializeFieldMapping<TMapping, KeywordPivot>
     where
         TMapping: FieldMapping<KeywordPivot> + KeywordMapping,
     {

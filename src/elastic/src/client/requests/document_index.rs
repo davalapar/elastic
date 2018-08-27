@@ -18,7 +18,7 @@ use client::requests::params::{Id, Index, Type};
 use client::requests::endpoints::IndexRequest;
 use client::requests::raw::RawRequestInner;
 use client::responses::IndexResponse;
-use types::document::{DocumentType, PartialIdentifiable};
+use types::document::InstanceDocumentMetadata;
 
 /** 
 An [index request][docs-index] builder that can be configured before sending.
@@ -103,10 +103,10 @@ where
     */
     pub fn document_index<TDocument>(&self, doc: TDocument) -> IndexRequestBuilder<TSender, TDocument>
     where
-        TDocument: Serialize + DocumentType + PartialIdentifiable,
+        TDocument: Serialize + InstanceDocumentMetadata,
     {
-        let index = TDocument::index().into();
-        let ty = TDocument::ty().into();
+        let index = doc.index().into_owned().into();
+        let ty = doc.ty().into_owned().into();
         let id = doc.partial_id().map(Cow::into_owned).map(Into::into);
 
         RequestBuilder::initial(

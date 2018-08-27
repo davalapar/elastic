@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, HashMap};
 use serde::{Serialize, Serializer};
 use serde::ser::SerializeStruct;
 
-use super::field::{DocumentField, FieldMapping, FieldType};
+use super::field::{SerializeFieldMapping, FieldMapping, FieldType};
 
 pub trait DefaultFieldType {}
 
@@ -12,10 +12,14 @@ pub trait DefaultFieldType {}
 #[derive(Debug, PartialEq, Default, Clone)]
 pub struct DefaultMapping;
 impl FieldMapping<()> for DefaultMapping {
-    type DocumentField = DocumentField<DefaultMapping, ()>;
+    type SerializeFieldMapping = SerializeFieldMapping<DefaultMapping, ()>;
+
+    fn data_type() -> &'static str {
+        "object"
+    }
 }
 
-impl Serialize for DocumentField<DefaultMapping, ()> {
+impl Serialize for SerializeFieldMapping<DefaultMapping, ()> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -50,14 +54,14 @@ where
     TMapping: FieldMapping<TPivot>,
     TPivot: Default,
 {
-    type DocumentField = TMapping::DocumentField;
+    type SerializeFieldMapping = TMapping::SerializeFieldMapping;
 
     fn data_type() -> &'static str {
         TMapping::data_type()
     }
 }
 
-impl<TMapping, TPivot> Serialize for DocumentField<WrappedMapping<TMapping, TPivot>, TPivot>
+impl<TMapping, TPivot> Serialize for SerializeFieldMapping<WrappedMapping<TMapping, TPivot>, TPivot>
 where
     TMapping: FieldMapping<TPivot>,
     TPivot: Default,
@@ -66,7 +70,7 @@ where
     where
         S: Serializer,
     {
-        TMapping::DocumentField::default().serialize(serializer)
+        TMapping::SerializeFieldMapping::default().serialize(serializer)
     }
 }
 

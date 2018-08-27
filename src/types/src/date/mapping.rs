@@ -182,7 +182,7 @@ mod private {
     use serde::{Serialize, Serializer};
     use serde::ser::SerializeStruct;
     use date::{DateFormat, FormattableDateValue};
-    use private::field::{DocumentField, FieldMapping, FieldType};
+    use private::field::{SerializeFieldMapping, FieldMapping, FieldType};
     use super::{DateFieldType, DateMapping};
 
     impl<TField, TMapping> FieldType<TMapping, DatePivot> for TField
@@ -201,14 +201,14 @@ mod private {
         TMapping: DateMapping<Format = TFormat>,
         TFormat: DateFormat,
     {
-        type DocumentField = DocumentField<TMapping, DatePivot>;
+        type SerializeFieldMapping = SerializeFieldMapping<TMapping, DatePivot>;
 
         fn data_type() -> &'static str {
             "date"
         }
     }
 
-    impl<TMapping, TFormat> Serialize for DocumentField<TMapping, DatePivot>
+    impl<TMapping, TFormat> Serialize for SerializeFieldMapping<TMapping, DatePivot>
     where
         TMapping: FieldMapping<DatePivot> + DateMapping<Format = TFormat>,
         TFormat: DateFormat,
@@ -241,7 +241,7 @@ mod tests {
     use chrono::{DateTime, Utc};
 
     use prelude::*;
-    use private::field::{DocumentField, FieldType};
+    use private::field::{SerializeFieldMapping, FieldType};
 
     #[derive(Default, Clone)]
     pub struct MyDateMapping;
@@ -287,7 +287,7 @@ mod tests {
 
     #[test]
     fn serialise_mapping_default() {
-        let ser = serde_json::to_string(&DocumentField::from(DefaultDateMapping::<
+        let ser = serde_json::to_string(&SerializeFieldMapping::from(DefaultDateMapping::<
             DefaultDateFormat,
         >::default()))
             .unwrap();
@@ -302,7 +302,7 @@ mod tests {
 
     #[test]
     fn serialise_mapping_custom() {
-        let ser = serde_json::to_string(&DocumentField::from(MyDateMapping)).unwrap();
+        let ser = serde_json::to_string(&SerializeFieldMapping::from(MyDateMapping)).unwrap();
 
         let expected = json_str!({
             "type": "date",

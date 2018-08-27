@@ -154,7 +154,7 @@ where
 mod private {
     use serde::{Serialize, Serializer};
     use serde::ser::SerializeStruct;
-    use private::field::{DocumentField, FieldMapping, FieldType};
+    use private::field::{SerializeFieldMapping, FieldMapping, FieldType};
     use super::{GeoPointFieldType, GeoPointMapping};
 
     #[derive(Default)]
@@ -171,14 +171,14 @@ mod private {
     where
         TMapping: GeoPointMapping,
     {
-        type DocumentField = DocumentField<TMapping, GeoPointPivot>;
+        type SerializeFieldMapping = SerializeFieldMapping<TMapping, GeoPointPivot>;
 
         fn data_type() -> &'static str {
             "geo_point"
         }
     }
 
-    impl<TMapping> Serialize for DocumentField<TMapping, GeoPointPivot>
+    impl<TMapping> Serialize for SerializeFieldMapping<TMapping, GeoPointPivot>
     where
         TMapping: FieldMapping<GeoPointPivot> + GeoPointMapping,
     {
@@ -206,7 +206,7 @@ mod tests {
     use serde_json;
 
     use prelude::*;
-    use private::field::DocumentField;
+    use private::field::SerializeFieldMapping;
 
     #[derive(Default, Clone)]
     pub struct MyGeoPointMapping;
@@ -236,7 +236,7 @@ mod tests {
 
     #[test]
     fn serialise_mapping_default() {
-        let ser = serde_json::to_string(&DocumentField::from(DefaultGeoPointMapping::<
+        let ser = serde_json::to_string(&SerializeFieldMapping::from(DefaultGeoPointMapping::<
             DefaultGeoPointFormat,
         >::default()))
             .unwrap();
@@ -250,7 +250,7 @@ mod tests {
 
     #[test]
     fn serialise_mapping_custom() {
-        let ser = serde_json::to_string(&DocumentField::from(MyGeoPointMapping)).unwrap();
+        let ser = serde_json::to_string(&SerializeFieldMapping::from(MyGeoPointMapping)).unwrap();
 
         let expected = json_str!({
             "type": "geo_point",

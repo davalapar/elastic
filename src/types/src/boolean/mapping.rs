@@ -56,7 +56,7 @@ This will produce the following mapping:
 }
 # );
 # #[cfg(feature = "nightly")]
-# let mapping = serde_json::to_string(&DocumentField::from(MyBooleanMapping)).unwrap();
+# let mapping = serde_json::to_string(&SerializeFieldMapping::from(MyBooleanMapping)).unwrap();
 # #[cfg(not(feature = "nightly"))]
 # let mapping = json.clone();
 # assert_eq!(json, mapping);
@@ -111,7 +111,7 @@ impl BooleanMapping for DefaultBooleanMapping {}
 mod private {
     use serde::{Serialize, Serializer};
     use serde::ser::SerializeStruct;
-    use private::field::{DocumentField, FieldMapping, FieldType};
+    use private::field::{SerializeFieldMapping, FieldMapping, FieldType};
     use super::{BooleanFieldType, BooleanMapping};
 
     #[derive(Default)]
@@ -128,14 +128,14 @@ mod private {
     where
         TMapping: BooleanMapping,
     {
-        type DocumentField = DocumentField<TMapping, BooleanPivot>;
+        type SerializeFieldMapping = SerializeFieldMapping<TMapping, BooleanPivot>;
 
         fn data_type() -> &'static str {
             "boolean"
         }
     }
 
-    impl<TMapping> Serialize for DocumentField<TMapping, BooleanPivot>
+    impl<TMapping> Serialize for SerializeFieldMapping<TMapping, BooleanPivot>
     where
         TMapping: FieldMapping<BooleanPivot> + BooleanMapping,
     {
@@ -163,7 +163,7 @@ mod tests {
     use serde_json;
 
     use prelude::*;
-    use private::field::{DocumentField, FieldType};
+    use private::field::{SerializeFieldMapping, FieldType};
 
     #[derive(Default, Clone)]
     pub struct MyBooleanMapping;
@@ -196,7 +196,7 @@ mod tests {
 
     #[test]
     fn serialise_mapping_default() {
-        let ser = serde_json::to_string(&DocumentField::from(DefaultBooleanMapping)).unwrap();
+        let ser = serde_json::to_string(&SerializeFieldMapping::from(DefaultBooleanMapping)).unwrap();
 
         let expected = json_str!({
             "type": "boolean"
@@ -207,7 +207,7 @@ mod tests {
 
     #[test]
     fn serialise_mapping_custom() {
-        let ser = serde_json::to_string(&DocumentField::from(MyBooleanMapping)).unwrap();
+        let ser = serde_json::to_string(&SerializeFieldMapping::from(MyBooleanMapping)).unwrap();
 
         let expected = json_str!({
             "type": "boolean",

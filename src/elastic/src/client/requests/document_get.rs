@@ -16,7 +16,7 @@ use client::requests::params::{Id, Index, Type};
 use client::requests::endpoints::GetRequest;
 use client::requests::raw::RawRequestInner;
 use client::responses::GetResponse;
-use types::document::DocumentType;
+use types::document::StaticDocumentMetadata;
 
 /** 
 A [get document request][docs-get] builder that can be configured before sending.
@@ -117,10 +117,10 @@ where
     */
     pub fn document_get<TDocument>(&self, id: Id<'static>) -> GetRequestBuilder<TSender, TDocument>
     where
-        TDocument: DeserializeOwned + DocumentType,
+        TDocument: DeserializeOwned + StaticDocumentMetadata,
     {
-        let index = TDocument::index().into();
-        let ty = TDocument::ty().into();
+        let index = TDocument::static_index().into();
+        let ty = TDocument::static_ty().into();
 
         RequestBuilder::initial(
             self.clone(),

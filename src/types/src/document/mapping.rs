@@ -5,9 +5,9 @@ use serde::{Serialize, Serializer};
 use serde::ser::SerializeStruct;
 
 /** A field that will be mapped as a nested document. */
-pub trait DocumentFieldType<M>
+pub trait ObjectFieldType<M>
 where
-    M: DocumentMapping,
+    M: ObjectMapping,
 {
 }
 
@@ -21,7 +21,7 @@ pub const DYNAMIC_DATATYPE: &'static str = "dynamic";
 pub const NESTED_DATATYPE: &'static str = "nested";
 
 /** The base requirements for mapping an `object` type. */
-pub trait DocumentMapping
+pub trait ObjectMapping
 where
     Self: Default,
 {
@@ -87,14 +87,14 @@ where
 #[derive(Default)]
 struct Properties<TMapping>
 where
-    TMapping: DocumentMapping,
+    TMapping: ObjectMapping,
 {
     _m: PhantomData<TMapping>,
 }
 
 impl<TMapping> Serialize for Properties<TMapping>
 where
-    TMapping: DocumentMapping,
+    TMapping: ObjectMapping,
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -133,48 +133,48 @@ impl Serialize for Dynamic {
 mod private {
     use serde::{Serialize, Serializer};
     use serde::ser::SerializeStruct;
-    use document::{DocumentType, IndexDocumentMapping};
-    use private::field::{DocumentField, FieldMapping, FieldType};
-    use super::{DocumentFieldType, DocumentMapping, PropertiesMapping, Properties, OBJECT_DATATYPE};
+    use document::{ObjectType, IndexDocumentMapping};
+    use private::field::{SerializeFieldMapping, FieldMapping, FieldType};
+    use super::{ObjectFieldType, ObjectMapping, PropertiesMapping, Properties, OBJECT_DATATYPE};
 
     #[derive(Default)]
-    pub struct DocumentPivot;
+    pub struct ObjectPivot;
 
-    impl<TField, TMapping> FieldType<TMapping, DocumentPivot> for TField
+    impl<TField, TMapping> FieldType<TMapping, ObjectPivot> for TField
     where
-        TMapping: DocumentMapping,
-        TField: DocumentFieldType<TMapping>,
+        TMapping: ObjectMapping,
+        TField: ObjectFieldType<TMapping>,
     {
     }
 
-    impl<TDocument, TMapping> DocumentFieldType<TMapping> for TDocument
+    impl<TObject, TMapping> ObjectFieldType<TMapping> for TObject
     where
-        TDocument: DocumentType<Mapping = TMapping, Properties = TMapping::Properties>,
-        TMapping: DocumentMapping,
+        TObject: ObjectType<Mapping = TMapping, Properties = TMapping::Properties>,
+        TMapping: ObjectMapping,
     {
     }
 
-    impl<TMapping> FieldMapping<DocumentPivot> for TMapping
+    impl<TMapping> FieldMapping<ObjectPivot> for TMapping
     where
-        TMapping: DocumentMapping,
+        TMapping: ObjectMapping,
     {
-        type DocumentField = DocumentField<TMapping, DocumentPivot>;
+        type SerializeFieldMapping = SerializeFieldMapping<TMapping, ObjectPivot>;
 
         fn data_type() -> &'static str {
-            <Self as DocumentMapping>::data_type()
+            <Self as ObjectMapping>::data_type()
         }
     }
 
-    impl<TMapping> Serialize for DocumentField<TMapping, DocumentPivot>
+    impl<TMapping> Serialize for SerializeFieldMapping<TMapping, ObjectPivot>
     where
-        TMapping: FieldMapping<DocumentPivot> + DocumentMapping,
+        TMapping: FieldMapping<ObjectPivot> + ObjectMapping,
     {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: Serializer,
         {
-            let ty = <TMapping as DocumentMapping>::data_type();
-            let props_len = <TMapping as DocumentMapping>::Properties::props_len();
+            let ty = <TMapping as ObjectMapping>::data_type();
+            let props_len = <TMapping as ObjectMapping>::Properties::props_len();
 
             let (is_object, has_props) = (ty == OBJECT_DATATYPE, props_len > 0);
 
@@ -205,7 +205,7 @@ mod private {
 
     impl<TMapping> Serialize for IndexDocumentMapping<TMapping>
     where
-        TMapping: DocumentMapping,
+        TMapping: ObjectMapping,
     {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
