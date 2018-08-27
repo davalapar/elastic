@@ -1,23 +1,7 @@
 use quote::Tokens;
 use syn;
 use serde_derive_internals::{self, attr as serde_attr};
-use super::{get_elastic_attr_name_value, get_ident_from_lit, get_tokens_from_lit};
-
-// TODO: Support some more operations:
-
-/*
-#[derive(DocumentType)]
-#[elastic(mapping = "", index = "", ty = "", id = "self.id()")]
-struct MyType {
-    a: X
-}
-
-#[derive(DocumentType)]
-struct MyType {
-    #[elastic(mapping = "")]
-    a: X
-}
-*/
+use super::{get_elastic_meta_items, expect_list, expect_name_value, expect_ident, get_ident_from_lit, get_tokens_from_lit};
 
 struct ElasticDocumentMapping {
     ident: syn::Ident,
@@ -60,6 +44,7 @@ pub fn expand_derive(crate_root: Tokens, input: &syn::MacroInput) -> Result<Vec<
     let doc_ty_impl_block = get_doc_ty_impl_block(
         &crate_root,
         input,
+        &fields,
         &mapping.ident,
         &mapping.ident);
 
@@ -105,7 +90,12 @@ fn get_mapping(crate_root: &Tokens, input: &syn::MacroInput) -> ElasticDocumentM
 
     // Get the mapping ident supplied by an #[elastic()] attribute or create a default one
     fn get_mapping_from_attr(item: &syn::MacroInput) -> Option<syn::Ident> {
-        let val = get_elastic_attr_name_value("mapping", item);
+        let val = get_elastic_meta_items(&item.attrs);
+            
+        let val = val
+            .iter()
+            .filter_map(|meta| expect_name_value("mapping", &meta))
+            .next();
 
         val.and_then(|v| get_ident_from_lit(v).ok())
     }
@@ -142,6 +132,7 @@ fn get_mapping(crate_root: &Tokens, input: &syn::MacroInput) -> ElasticDocumentM
 fn get_doc_ty_impl_block(
     crate_root: &Tokens,
     item: &syn::MacroInput,
+    fields: &[(syn::Ident, &syn::Field)],
     mapping: &syn::Ident,
     properties: &syn::Ident)
 -> Tokens {
@@ -152,7 +143,7 @@ fn get_doc_ty_impl_block(
     }
 
     // Get the default method blocks for `DocumentType`
-    fn get_doc_type_methods(item: &syn::MacroInput) -> ElasticDocumentTypeMethods {
+    fn get_doc_type_methods(item: &syn::MacroInput, fields: &[(syn::Ident, &syn::Field)]) -> ElasticDocumentTypeMethods {
         // Get the default name for the indexed elasticsearch type name
         fn get_elastic_type_name(item: &syn::MacroInput) -> syn::Lit {
             syn::Lit::Str(
@@ -162,30 +153,70 @@ fn get_doc_ty_impl_block(
         }
 
         // Get the mapping ident supplied by an #[elastic()] attribute or create a default one
-        fn get_method_from_attr(item: &syn::MacroInput, method: &str) -> Option<Tokens> {
-            let val = get_elastic_attr_name_value(method, item);
+        // Parses #[elastic(method = $lit)]
+        // Parses #[elastic(method(expr = $expr))]
+        fn get_method_from_struct(item: &syn::MacroInput, method: &str) -> Option<Tokens> {
+            let val = get_elastic_meta_items(&item.attrs);
+            
+            // Attempt to get a literal 
+            if let Some(lit) = val
+                .iter()
+                .filter_map(|meta| expect_name_value(method, meta))
+                .next()
+            {
+                return Some(quote!(#lit))
+            }
 
-            val.and_then(|v| get_tokens_from_lit(v).ok())
+            if let Some(expr) = val
+                .iter()
+                .filter_map(|meta| expect_list(method, meta))
+                .flat_map(|attrs| attrs)
+                .filter_map(|meta| expect_name_value("expr", meta))
+                .next()
+                .and_then(|expr| get_tokens_from_lit(expr).ok())
+            {
+                return Some(quote!(#expr (self)))
+            }
+
+            None
         }
 
-        let index_expr = get_method_from_attr(item, "index")
+        fn get_method_from_fields(fields: &[(syn::Ident, &syn::Field)], method: &str) -> Option<Tokens> {
+            for &(_, ref field) in fields {
+                if get_elastic_meta_items(&field.attrs)
+                    .iter()
+                    .any(|meta| {
+                        expect_ident(method, meta)
+                    })
+                {
+                    let field = &field.ident;
+
+                    return  Some(quote!(&self . #field));
+                }
+            }
+            
+            None
+        }
+
+        let index_expr = get_method_from_struct(item, "index")
             .unwrap_or_else(|| {
                 let name = get_elastic_type_name(item);
                 quote!(#name)
             });
 
-        let ty = get_method_from_attr(item, "ty")
-            .map(|ty_expr| quote!(
+        let ty = get_method_from_struct(item, "ty")
+            .map(|tokens| quote!(
                 fn ty(&self) -> ::std::borrow::Cow<str> {
-                    (#ty_expr).into()
+                    (#tokens).into()
                 }
             ))
             .unwrap_or_else(Tokens::new);
 
-        let id = get_method_from_attr(item, "id")
+        let id = get_method_from_struct(item, "id")
+            .or_else(|| get_method_from_fields(fields, "id"))
             .map(|id_expr| quote!(
                 fn id(&self) -> Option<::std::borrow::Cow<str>> {
-                    (#id_expr).into()
+                    Some((#id_expr).into())
                 }
             ))
             .unwrap_or_else(Tokens::new);
@@ -206,7 +237,7 @@ fn get_doc_ty_impl_block(
         ref index,
         ref ty,
         ref id,
-    } = get_doc_type_methods(item);
+    } = get_doc_type_methods(item, fields);
 
     quote!(
         impl #crate_root::derive::DocumentType for #doc_ty {

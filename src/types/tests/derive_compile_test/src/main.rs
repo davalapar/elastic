@@ -11,11 +11,17 @@ extern crate elastic_types_derive;
 pub struct DerivedDateFormat;
 
 #[derive(ElasticType)]
-#[elastic(ty = "doc")]
+#[elastic(index(expr = "DerivedDocument::index"), ty = "doc")]
 pub struct DerivedDocument {
-    pub field1: String,
     #[elastic(id)]
+    pub field1: String,
     pub field2: i32,
+}
+
+impl DerivedDocument {
+    fn index(&self) -> String {
+        format!("idx-{}", self.field2)
+    }
 }
 
 fn main() {}
