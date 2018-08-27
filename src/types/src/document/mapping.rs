@@ -149,7 +149,7 @@ mod private {
 
     impl<TObject, TMapping> ObjectFieldType<TMapping> for TObject
     where
-        TObject: ObjectType<Mapping = TMapping, Properties = TMapping::Properties>,
+        TObject: ObjectType<Mapping = TMapping>,
         TMapping: ObjectMapping,
     {
     }

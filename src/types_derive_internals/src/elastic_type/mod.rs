@@ -58,7 +58,6 @@ pub fn expand_derive(crate_root: Tokens, input: &syn::MacroInput) -> Result<Vec<
         &crate_root,
         input,
         &mapping.ident,
-        &mapping.ident,
     );
 
     let doc_meta_impl_block = get_metadata_impl_block(
@@ -161,15 +160,13 @@ fn get_mapping(crate_root: &Tokens, input: &syn::MacroInput) -> ElasticDocumentM
 fn get_doc_ty_impl_block(
     crate_root: &Tokens,
     item: &syn::MacroInput,
-    mapping: &syn::Ident,
-    properties: &syn::Ident)
+    mapping: &syn::Ident)
 -> Tokens {
     let doc_ty = &item.ident;
 
     quote!(
         impl #crate_root::derive::ObjectType for #doc_ty {
             type Mapping = #mapping;
-            type Properties = #properties;
         }
 
         impl #crate_root::derive::DocumentType for #doc_ty {

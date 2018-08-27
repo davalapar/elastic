@@ -12,10 +12,7 @@ type itself.
 */
 pub trait ObjectType {
     /** The mapping type for this document. */
-    type Mapping: ObjectMapping<Properties = Self::Properties>;
-
-    /** The properties type for this document. */
-    type Properties: PropertiesMapping;
+    type Mapping: ObjectMapping;
 
     /** Get a serialisable instance of the type mapping as a field. */
     fn field_mapping() -> Self::Mapping {
@@ -243,7 +240,6 @@ impl ObjectMapping for ValueObjectMapping {
 
 impl ObjectType for Value {
     type Mapping = ValueObjectMapping;
-    type Properties = EmptyPropertiesMapping;
 }
 
 /** Mapping for an anonymous json object. */
@@ -265,11 +261,10 @@ impl PropertiesMapping for EmptyPropertiesMapping {
 
 impl<'a, TObject, TMapping> ObjectType for &'a TObject
 where
-    TObject: ObjectType<Mapping = TMapping, Properties = TMapping::Properties>,
+    TObject: ObjectType<Mapping = TMapping>,
     TMapping: ObjectMapping,
 {
     type Mapping = TMapping;
-    type Properties = TObject::Properties;
 }
 
 impl<'a, TDocument> DocumentType for &'a TDocument
@@ -323,11 +318,10 @@ where
 
 impl<'a, TObject, TMapping> ObjectType for Cow<'a, TObject>
 where
-    TObject: ObjectType<Mapping = TMapping, Properties = TMapping::Properties> + Clone,
+    TObject: ObjectType<Mapping = TMapping> + Clone,
     TMapping: ObjectMapping,
 {
     type Mapping = TMapping;
-    type Properties = TObject::Properties;
 }
 
 impl<'a, TDocument> DocumentType for Cow<'a, TDocument>
@@ -435,14 +429,12 @@ mod tests {
     #[derive(PartialEq, Debug, Default)]
     pub struct ManualCustomTypeMapping;
     impl ObjectMapping for ManualCustomTypeMapping {
-        type Properties = CustomType::Properties;
+        
     }
 
     #[derive(PartialEq, Debug, Default)]
     pub struct AlternativeManualCustomTypeMapping;
     impl ObjectMapping for AlternativeManualCustomTypeMapping {
-        type Properties = CustomType::Properties;
-
         fn data_type() -> &str {
             OBJECT_DATATYPE
         }
