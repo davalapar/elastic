@@ -13,7 +13,7 @@ use chrono::format::{self, Parsed};
 use private::field::{DocumentField, FieldMapping, FieldType};
 
 pub use date::{DateFormat, DateValue, FormattedDate, ParseError};
-pub use document::DocumentType;
+pub use document::{DocumentType, Identifiable, PartialIdentifiable};
 pub use document::mapping::{DocumentMapping, PropertiesMapping};
 
 pub use chrono::format::{Fixed, Item, Numeric, Pad};

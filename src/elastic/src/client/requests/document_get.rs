@@ -115,11 +115,12 @@ where
     [types-mod]: ../types/index.html
     [documents-mod]: ../types/document/index.html
     */
-    pub fn document_get<TDocument>(&self, index: Index<'static>, id: Id<'static>) -> GetRequestBuilder<TSender, TDocument>
+    pub fn document_get<TDocument>(&self, id: Id<'static>) -> GetRequestBuilder<TSender, TDocument>
     where
         TDocument: DeserializeOwned + DocumentType,
     {
-        let ty = TDocument::name().into();
+        let index = TDocument::index().into();
+        let ty = TDocument::ty().into();
 
         RequestBuilder::initial(
             self.clone(),

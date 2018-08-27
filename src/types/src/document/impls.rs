@@ -5,7 +5,7 @@ use serde_json::Value;
 use super::mapping::{DocumentMapping, PropertiesMapping};
 
 /**
-The additional fields available to an indexable Elasticsearch type.
+An indexable Elasticsearch type.
 
 This trait is implemented for the type being mapped, rather than the mapping
 type itself.
@@ -20,20 +20,13 @@ pub trait DocumentType {
     /**
     Get the index for this type.
     */
-    fn index(&self) -> Cow<str>;
+    fn index() -> &'static str;
 
     /**
     Get the name for this type.
     */
-    fn ty(&self) -> Cow<str> {
+    fn ty() -> &'static str {
         "_doc".into()
-    }
-
-    /**
-    Get the id for this type.
-    */
-    fn id(&self) -> Option<Cow<str>> {
-        None
     }
 
     /** Get a serialisable instance of the type mapping as a field. */
@@ -45,6 +38,26 @@ pub trait DocumentType {
     fn index_mapping() -> IndexDocumentMapping<Self::Mapping> {
         IndexDocumentMapping::default()
     }
+}
+
+/**
+A type that might carry an id field.
+*/
+pub trait PartialIdentifiable {
+    /**
+    Maybe get the id for this type.
+    */
+    fn partial_id(&self) -> Option<Cow<str>>;
+}
+
+/**
+A type that carries an id field.
+*/
+pub trait Identifiable: PartialIdentifiable {
+    /**
+    Get the id for this type.
+    */
+    fn id(&self) -> Cow<str>;
 }
 
 /**
@@ -242,8 +255,8 @@ impl DocumentType for Value {
     type Mapping = ValueDocumentMapping;
     type Properties = EmptyPropertiesMapping;
 
-    fn index(&self) -> Cow<str> {
-        "value".into()
+    fn index() -> &'static str {
+        "value"
     }
 }
 
@@ -272,15 +285,29 @@ where
     type Mapping = TMapping;
     type Properties = TDocument::Properties;
 
-    fn index(&self) -> Cow<str> {
-        (*self).index()
+    fn index() -> &'static str {
+        TDocument::index()
     }
 
-    fn ty(&self) -> Cow<str> {
-        (*self).ty()
+    fn ty() -> &'static str {
+        TDocument::ty()
     }
+}
 
-    fn id(&self) -> Option<Cow<str>> {
+impl<'a, TIdentifiable> PartialIdentifiable for &'a TIdentifiable
+where
+    TIdentifiable: PartialIdentifiable,
+{
+    fn partial_id(&self) -> Option<Cow<str>> {
+        (*self).partial_id()
+    }
+}
+
+impl<'a, TIdentifiable> Identifiable for &'a TIdentifiable
+where
+    TIdentifiable: Identifiable,
+{
+    fn id(&self) -> Cow<str> {
         (*self).id()
     }
 }
@@ -293,15 +320,29 @@ where
     type Mapping = TMapping;
     type Properties = TDocument::Properties;
 
-    fn index(&self) -> Cow<str> {
-        self.as_ref().index()
+    fn index() -> &'static str {
+        TDocument::index()
     }
 
-    fn ty(&self) -> Cow<str> {
-        self.as_ref().ty()
+    fn ty() -> &'static str {
+        TDocument::ty()
     }
+}
 
-    fn id(&self) -> Option<Cow<str>> {
+impl<'a, TIdentifiable> PartialIdentifiable for Cow<'a, TIdentifiable>
+where
+    TIdentifiable: PartialIdentifiable + Clone,
+{
+    fn partial_id(&self) -> Option<Cow<str>> {
+        self.as_ref().partial_id()
+    }
+}
+
+impl<'a, TIdentifiable> Identifiable for Cow<'a, TIdentifiable>
+where
+    TIdentifiable: Identifiable + Clone,
+{
+    fn id(&self) -> Cow<str> {
         self.as_ref().id()
     }
 }
