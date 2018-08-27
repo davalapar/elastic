@@ -13,8 +13,8 @@ use chrono::format::{self, Parsed};
 use private::field::{SerializeFieldMapping, FieldMapping, FieldType};
 
 pub use date::{DateFormat, DateValue, FormattedDate, ParseError};
-pub use document::{ObjectType, DocumentType, InstanceDocumentMetadata, StaticDocumentMetadata, Identity, PartialIdentity};
-pub use document::mapping::{ObjectMapping, PropertiesMapping};
+pub use document::{DocumentType, InstanceDocumentMetadata, StaticDocumentMetadata, Identity, PartialIdentity};
+pub use document::mapping::{ObjectMapping, ObjectFieldType, PropertiesMapping};
 
 pub use chrono::format::{Fixed, Item, Numeric, Pad};
 pub use serde::ser::SerializeStruct;

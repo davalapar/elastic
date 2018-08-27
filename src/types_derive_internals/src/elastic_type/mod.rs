@@ -13,7 +13,7 @@ struct ElasticDocumentMapping {
 TODO: Support new trait design
 
 ObjectMapping
-ObjectType
+ObjectFieldType
 
 DocumentType
 InstanceDocumentMetadata
@@ -165,7 +165,7 @@ fn get_doc_ty_impl_block(
     let doc_ty = &item.ident;
 
     quote!(
-        impl #crate_root::derive::ObjectType for #doc_ty {
+        impl #crate_root::derive::ObjectFieldType for #doc_ty {
             type Mapping = #mapping;
         }
 

@@ -5,10 +5,8 @@ use serde::{Serialize, Serializer};
 use serde::ser::SerializeStruct;
 
 /** A field that will be mapped as a nested document. */
-pub trait ObjectFieldType<M>
-where
-    M: ObjectMapping,
-{
+pub trait ObjectFieldType {
+    type Mapping: ObjectMapping;
 }
 
 /** Elasticsearch datatype name. */
@@ -133,7 +131,7 @@ impl Serialize for Dynamic {
 mod private {
     use serde::{Serialize, Serializer};
     use serde::ser::SerializeStruct;
-    use document::{ObjectType, IndexDocumentMapping};
+    use document::IndexDocumentMapping;
     use private::field::{SerializeFieldMapping, FieldMapping, FieldType};
     use super::{ObjectFieldType, ObjectMapping, PropertiesMapping, Properties, OBJECT_DATATYPE};
 
@@ -143,14 +141,7 @@ mod private {
     impl<TField, TMapping> FieldType<TMapping, ObjectPivot> for TField
     where
         TMapping: ObjectMapping,
-        TField: ObjectFieldType<TMapping>,
-    {
-    }
-
-    impl<TObject, TMapping> ObjectFieldType<TMapping> for TObject
-    where
-        TObject: ObjectType<Mapping = TMapping>,
-        TMapping: ObjectMapping,
+        TField: ObjectFieldType<Mapping = TMapping>,
     {
     }
 

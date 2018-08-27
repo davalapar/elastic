@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::marker::PhantomData;
 use serde::ser::SerializeStruct;
 use serde_json::Value;
-use super::mapping::{ObjectMapping, PropertiesMapping};
+use super::mapping::{ObjectFieldType, ObjectMapping, PropertiesMapping};
 
 /**
 An indexable Elasticsearch type.
@@ -10,19 +10,14 @@ An indexable Elasticsearch type.
 This trait is implemented for the type being mapped, rather than the mapping
 type itself.
 */
-pub trait ObjectType {
-    /** The mapping type for this document. */
-    type Mapping: ObjectMapping;
-
+pub trait DocumentType: ObjectFieldType + InstanceDocumentMetadata + PartialIdentity {
     /** Get a serialisable instance of the type mapping as a field. */
-    fn field_mapping() -> Self::Mapping {
+    fn field_mapping() -> <Self as ObjectFieldType>::Mapping {
         Self::Mapping::default()
     }
-}
 
-pub trait DocumentType: ObjectType + InstanceDocumentMetadata + PartialIdentity {
     /** Get a serialisable instance of the type mapping as an indexable type */
-    fn index_mapping() -> IndexDocumentMapping<Self::Mapping> {
+    fn index_mapping() -> IndexDocumentMapping<<Self as ObjectFieldType>::Mapping> {
         IndexDocumentMapping::default()
     }
 }
@@ -238,7 +233,7 @@ impl ObjectMapping for ValueObjectMapping {
     type Properties = EmptyPropertiesMapping;
 }
 
-impl ObjectType for Value {
+impl ObjectFieldType for Value {
     type Mapping = ValueObjectMapping;
 }
 
@@ -259,9 +254,9 @@ impl PropertiesMapping for EmptyPropertiesMapping {
     }
 }
 
-impl<'a, TObject, TMapping> ObjectType for &'a TObject
+impl<'a, TObject, TMapping> ObjectFieldType for &'a TObject
 where
-    TObject: ObjectType<Mapping = TMapping>,
+    TObject: ObjectFieldType<Mapping = TMapping>,
     TMapping: ObjectMapping,
 {
     type Mapping = TMapping;
@@ -316,9 +311,9 @@ where
     }
 }
 
-impl<'a, TObject, TMapping> ObjectType for Cow<'a, TObject>
+impl<'a, TObject, TMapping> ObjectFieldType for Cow<'a, TObject>
 where
-    TObject: ObjectType<Mapping = TMapping> + Clone,
+    TObject: ObjectFieldType<Mapping = TMapping> + Clone,
     TMapping: ObjectMapping,
 {
     type Mapping = TMapping;
