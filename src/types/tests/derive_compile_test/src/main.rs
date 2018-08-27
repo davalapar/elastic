@@ -11,8 +11,10 @@ extern crate elastic_types_derive;
 pub struct DerivedDateFormat;
 
 #[derive(ElasticType)]
+#[elastic(ty = "doc")]
 pub struct DerivedDocument {
     pub field1: String,
+    #[elastic(id)]
     pub field2: i32,
 }
 

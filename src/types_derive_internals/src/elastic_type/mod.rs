@@ -1,7 +1,29 @@
 use quote::Tokens;
 use syn;
 use serde_derive_internals::{self, attr as serde_attr};
-use super::{get_elastic_attr_name_value, get_ident_from_lit};
+use super::{get_elastic_attr_name_value, get_ident_from_lit, get_tokens_from_lit};
+
+// TODO: Support some more operations:
+
+/*
+#[derive(DocumentType)]
+#[elastic(mapping = "", index = "", ty = "", id = "self.id()")]
+struct MyType {
+    a: X
+}
+
+#[derive(DocumentType)]
+struct MyType {
+    #[elastic(mapping = "")]
+    a: X
+}
+*/
+
+struct ElasticDocumentMapping {
+    ident: syn::Ident,
+    definition: Tokens,
+    impl_block: Tokens,
+}
 
 /**
 Derive `DocumentType` for the given input.
@@ -33,83 +55,202 @@ pub fn expand_derive(crate_root: Tokens, input: &syn::MacroInput) -> Result<Vec<
         .map(|f| f.unwrap())
         .collect();
 
-    let (mapping_ty, define_mapping, impl_mapping) = {
-        // If a user supplies a mapping with `#[elastic(mapping="")]`, then use it.
-        // Otherwise, define the mapping struct and implement defaults for it.
-        if let Some(mapping_ty) = get_mapping_from_attr(input) {
-            (mapping_ty, Tokens::new(), Tokens::new())
-        } else {
-            let mapping_ty = get_default_mapping(input);
-            let es_ty = get_elastic_type_name(input);
+    let mapping = get_mapping(&crate_root, input);
 
-            let impl_mapping = impl_object_mapping(crate_root.clone(), &mapping_ty, &es_ty);
+    let doc_ty_impl_block = get_doc_ty_impl_block(
+        &crate_root,
+        input,
+        &mapping.ident,
+        &mapping.ident);
 
-            let define_mapping = define_mapping(&mapping_ty);
-
-            (mapping_ty, define_mapping, impl_mapping)
-        }
-    };
-
-    let impl_elastic_ty = impl_elastic_ty(crate_root.clone(), input, &mapping_ty);
-    let impl_props_mapping = impl_props_mapping(
-        crate_root.clone(),
-        &mapping_ty,
-        get_props_ser_stmts(crate_root.clone(), &fields),
-    );
+    let props_impl_block = get_props_impl_block(
+        &crate_root,
+        &mapping.ident,
+        &fields);
 
     let dummy_wrapper = syn::Ident::new(format!("_IMPL_EASTIC_TYPE_FOR_{}", input.ident));
 
+    let mapping_definition = &mapping.definition;
+    let mapping_impl_block = &mapping.impl_block;
+
     Ok(vec![
         quote!(
-        #define_mapping
+        #mapping_definition
 
         #[allow(non_upper_case_globals, dead_code, unused_variables)]
         const #dummy_wrapper: () = {            
-            #impl_mapping
+            #mapping_impl_block
 
-            #impl_elastic_ty
+            #doc_ty_impl_block
 
-            #impl_props_mapping
+            #props_impl_block
         };
     ),
     ])
 }
 
-// Define a struct for the mapping with a few defaults
-fn define_mapping(name: &syn::Ident) -> Tokens {
-    quote!(
-        #[derive(Default, Clone, Copy, Debug)]
-        pub struct #name;
-    )
+fn get_mapping(crate_root: &Tokens, input: &syn::MacroInput) -> ElasticDocumentMapping {
+    // Define a struct for the mapping with a few defaults
+    fn define_mapping(name: &syn::Ident) -> Tokens {
+        quote!(
+            #[derive(Default, Clone, Copy, Debug)]
+            pub struct #name;
+        )
+    }
+
+    // Get the default mapping name
+    fn get_default_mapping(item: &syn::MacroInput) -> syn::Ident {
+        syn::Ident::from(format!("{}Mapping", item.ident))
+    }
+
+    // Get the mapping ident supplied by an #[elastic()] attribute or create a default one
+    fn get_mapping_from_attr(item: &syn::MacroInput) -> Option<syn::Ident> {
+        let val = get_elastic_attr_name_value("mapping", item);
+
+        val.and_then(|v| get_ident_from_lit(v).ok())
+    }
+
+    // Implement DocumentMapping for the mapping
+    fn impl_document_mapping(crate_root: &Tokens, mapping: &syn::Ident, properties: &syn::Ident) -> Tokens {
+        quote!(
+            impl #crate_root::derive::DocumentMapping for #mapping {
+                type Properties = #properties;
+            }
+        )
+    }
+
+    if let Some(ident) = get_mapping_from_attr(input) {
+        ElasticDocumentMapping {
+            ident,
+            definition: Tokens::new(),
+            impl_block: Tokens::new(),
+        }
+    } else {
+        let ident = get_default_mapping(input);
+        let definition = define_mapping(&ident);
+        let impl_block = impl_document_mapping(&crate_root, &ident, &ident);
+
+        ElasticDocumentMapping {
+            ident,
+            definition,
+            impl_block,
+        }
+    }
 }
 
 // Implement DocumentType for the type being derived with the mapping
-fn impl_elastic_ty(crate_root: Tokens, item: &syn::MacroInput, mapping: &syn::Ident) -> Tokens {
-    let ty = &item.ident;
+fn get_doc_ty_impl_block(
+    crate_root: &Tokens,
+    item: &syn::MacroInput,
+    mapping: &syn::Ident,
+    properties: &syn::Ident)
+-> Tokens {
+    struct ElasticDocumentTypeMethods {
+        index: Tokens,
+        ty: Tokens,
+        id: Tokens,
+    }
 
-    quote!(
-        impl #crate_root::derive::DocumentType for #ty {
-            type Mapping = #mapping;
+    // Get the default method blocks for `DocumentType`
+    fn get_doc_type_methods(item: &syn::MacroInput) -> ElasticDocumentTypeMethods {
+        // Get the default name for the indexed elasticsearch type name
+        fn get_elastic_type_name(item: &syn::MacroInput) -> syn::Lit {
+            syn::Lit::Str(
+                format!("{}", item.ident).to_lowercase(),
+                syn::StrStyle::Cooked,
+            )
         }
-    )
-}
 
-// Implement DocumentMapping for the mapping
-fn impl_object_mapping(crate_root: Tokens, mapping: &syn::Ident, es_ty: &syn::Lit) -> Tokens {
+        // Get the mapping ident supplied by an #[elastic()] attribute or create a default one
+        fn get_method_from_attr(item: &syn::MacroInput, method: &str) -> Option<Tokens> {
+            let val = get_elastic_attr_name_value(method, item);
+
+            val.and_then(|v| get_tokens_from_lit(v).ok())
+        }
+
+        let index_expr = get_method_from_attr(item, "index")
+            .unwrap_or_else(|| {
+                let name = get_elastic_type_name(item);
+                quote!(#name)
+            });
+
+        let ty = get_method_from_attr(item, "ty")
+            .map(|ty_expr| quote!(
+                fn ty(&self) -> ::std::borrow::Cow<str> {
+                    (#ty_expr).into()
+                }
+            ))
+            .unwrap_or_else(Tokens::new);
+
+        let id = get_method_from_attr(item, "id")
+            .map(|id_expr| quote!(
+                fn id(&self) -> Option<::std::borrow::Cow<str>> {
+                    (#id_expr).into()
+                }
+            ))
+            .unwrap_or_else(Tokens::new);
+
+        ElasticDocumentTypeMethods {
+            index: quote!(
+                fn index(&self) -> ::std::borrow::Cow<str> {
+                    (#index_expr).into()
+                }
+            ),
+            ty,
+            id,
+        }
+    }
+
+    let doc_ty = &item.ident;
+    let ElasticDocumentTypeMethods {
+        ref index,
+        ref ty,
+        ref id,
+    } = get_doc_type_methods(item);
+
     quote!(
-        impl #crate_root::derive::DocumentMapping for #mapping {
-            fn name() -> &'static str { #es_ty }
+        impl #crate_root::derive::DocumentType for #doc_ty {
+            type Mapping = #mapping;
+            type Properties = #properties;
+
+            #index
+
+            #ty
+
+            #id
         }
     )
 }
 
 // Implement PropertiesMapping for the mapping
-fn impl_props_mapping(crate_root: Tokens, mapping: &syn::Ident, prop_ser_stmts: Vec<Tokens>) -> Tokens {
-    let stmts_len = prop_ser_stmts.len();
-    let stmts = prop_ser_stmts;
+fn get_props_impl_block(
+    crate_root: &Tokens,
+    props_ty: &syn::Ident,
+    fields: &[(syn::Ident, &syn::Field)])
+-> Tokens {
+    // Get the serde serialisation statements for each of the fields on the type being derived
+    fn get_field_ser_stmts(crate_root: &Tokens, fields: &[(syn::Ident, &syn::Field)]) -> Vec<Tokens> {
+        let fields: Vec<Tokens> = fields
+            .iter()
+            .cloned()
+            .map(|(name, field)| {
+                let lit = syn::Lit::Str(name.as_ref().to_string(), syn::StrStyle::Cooked);
+                let ty = &field.ty;
+
+                let expr = quote!(#crate_root::derive::mapping::<#ty, _, _>());
+
+                quote!(try!(#crate_root::derive::field_ser(state, #lit, #expr));)
+            })
+            .collect();
+
+        fields
+    }
+
+    let stmts = get_field_ser_stmts(crate_root, fields);
+    let stmts_len = stmts.len();
 
     quote!(
-        impl #crate_root::derive::PropertiesMapping for #mapping {
+        impl #crate_root::derive::PropertiesMapping for #props_ty {
             fn props_len() -> usize { #stmts_len }
 
             fn serialize_props<S>(state: &mut S) -> ::std::result::Result<(), S::Error> 
@@ -118,44 +259,6 @@ fn impl_props_mapping(crate_root: Tokens, mapping: &syn::Ident, prop_ser_stmts: 
                 Ok(())
             }
         }
-    )
-}
-
-// Get the serde serialisation statements for each of the fields on the type being derived
-fn get_props_ser_stmts(crate_root: Tokens, fields: &[(syn::Ident, &syn::Field)]) -> Vec<Tokens> {
-    let fields: Vec<Tokens> = fields
-        .iter()
-        .cloned()
-        .map(|(name, field)| {
-            let lit = syn::Lit::Str(name.as_ref().to_string(), syn::StrStyle::Cooked);
-            let ty = &field.ty;
-
-            let expr = quote!(#crate_root::derive::mapping::<#ty, _, _>());
-
-            quote!(try!(#crate_root::derive::field_ser(state, #lit, #expr));)
-        })
-        .collect();
-
-    fields
-}
-
-// Get the mapping ident supplied by an #[elastic()] attribute or create a default one
-fn get_mapping_from_attr(item: &syn::MacroInput) -> Option<syn::Ident> {
-    let val = get_elastic_attr_name_value("mapping", item);
-
-    val.and_then(|v| get_ident_from_lit(v).ok())
-}
-
-// Get the default mapping name
-fn get_default_mapping(item: &syn::MacroInput) -> syn::Ident {
-    syn::Ident::from(format!("{}Mapping", item.ident))
-}
-
-// Get the default name for the indexed elasticsearch type name
-fn get_elastic_type_name(item: &syn::MacroInput) -> syn::Lit {
-    syn::Lit::Str(
-        format!("{}", item.ident).to_lowercase(),
-        syn::StrStyle::Cooked,
     )
 }
 

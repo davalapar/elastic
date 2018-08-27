@@ -1,4 +1,3 @@
-use std::sync::{Mutex, RwLock};
 use std::borrow::Cow;
 use std::marker::PhantomData;
 use serde::ser::{Serialize, SerializeStruct};
@@ -13,15 +12,28 @@ type itself.
 */
 pub trait DocumentType {
     /** The mapping type for this document. */
-    type Mapping: DocumentMapping;
+    type Mapping: DocumentMapping<Properties = Self::Properties>;
+
+    /** The properties type for this document. */
+    type Properties: PropertiesMapping;
+
+    /**
+    Get the index for this type.
+    */
+    fn index(&self) -> Cow<str>;
 
     /**
     Get the name for this type.
-    
-    This is a convenience method that returns the `name` of the bound `DocumentMapping`.
     */
-    fn name() -> &'static str {
-        Self::Mapping::name()
+    fn ty(&self) -> Cow<str> {
+        "_doc".into()
+    }
+
+    /**
+    Get the id for this type.
+    */
+    fn id(&self) -> Option<Cow<str>> {
+        None
     }
 
     /** Get a serialisable instance of the type mapping as a field. */
@@ -223,16 +235,23 @@ where
 pub struct ValueDocumentMapping;
 
 impl DocumentMapping for ValueDocumentMapping {
-    fn name() -> &'static str {
-        "value"
-    }
+    type Properties = EmptyPropertiesMapping;
 }
 
 impl DocumentType for Value {
     type Mapping = ValueDocumentMapping;
+    type Properties = EmptyPropertiesMapping;
+
+    fn index(&self) -> Cow<str> {
+        "value".into()
+    }
 }
 
-impl PropertiesMapping for ValueDocumentMapping {
+/** Mapping for an anonymous json object. */
+#[derive(Default)]
+pub struct EmptyPropertiesMapping;
+
+impl PropertiesMapping for EmptyPropertiesMapping {
     fn props_len() -> usize {
         0
     }
@@ -247,34 +266,44 @@ impl PropertiesMapping for ValueDocumentMapping {
 
 impl<'a, TDocument, TMapping> DocumentType for &'a TDocument
 where
-    TDocument: DocumentType<Mapping = TMapping> + Serialize,
+    TDocument: DocumentType<Mapping = TMapping, Properties = TMapping::Properties> + Serialize,
     TMapping: DocumentMapping,
 {
     type Mapping = TMapping;
-}
+    type Properties = TDocument::Properties;
 
-impl<TDocument, TMapping> DocumentType for Mutex<TDocument>
-where
-    TDocument: DocumentType<Mapping = TMapping> + Serialize,
-    TMapping: DocumentMapping,
-{
-    type Mapping = TMapping;
-}
+    fn index(&self) -> Cow<str> {
+        (*self).index()
+    }
 
-impl<TDocument, TMapping> DocumentType for RwLock<TDocument>
-where
-    TDocument: DocumentType<Mapping = TMapping> + Serialize,
-    TMapping: DocumentMapping,
-{
-    type Mapping = TMapping;
+    fn ty(&self) -> Cow<str> {
+        (*self).ty()
+    }
+
+    fn id(&self) -> Option<Cow<str>> {
+        (*self).id()
+    }
 }
 
 impl<'a, TDocument, TMapping> DocumentType for Cow<'a, TDocument>
 where
-    TDocument: DocumentType<Mapping = TMapping> + Serialize + Clone,
+    TDocument: DocumentType<Mapping = TMapping, Properties = TMapping::Properties> + Serialize + Clone,
     TMapping: DocumentMapping,
 {
     type Mapping = TMapping;
+    type Properties = TDocument::Properties;
+
+    fn index(&self) -> Cow<str> {
+        self.as_ref().index()
+    }
+
+    fn ty(&self) -> Cow<str> {
+        self.as_ref().ty()
+    }
+
+    fn id(&self) -> Option<Cow<str>> {
+        self.as_ref().id()
+    }
 }
 
 #[cfg(test)]
@@ -333,8 +362,16 @@ mod tests {
     #[derive(PartialEq, Debug, Default)]
     pub struct ManualCustomTypeMapping;
     impl DocumentMapping for ManualCustomTypeMapping {
-        fn name() -> &'static str {
-            "renamed_type"
+        type Properties = CustomType::Properties;
+    }
+
+    #[derive(PartialEq, Debug, Default)]
+    pub struct AlternativeManualCustomTypeMapping;
+    impl DocumentMapping for AlternativeManualCustomTypeMapping {
+        type Properties = CustomType::Properties;
+
+        fn data_type() -> &str {
+            OBJECT_DATATYPE
         }
     }
 

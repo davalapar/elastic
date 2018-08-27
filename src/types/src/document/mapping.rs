@@ -23,10 +23,10 @@ pub const NESTED_DATATYPE: &'static str = "nested";
 /** The base requirements for mapping an `object` type. */
 pub trait DocumentMapping
 where
-    Self: PropertiesMapping + Default,
+    Self: Default,
 {
-    /** Get the indexed name for this mapping. */
-    fn name() -> &'static str;
+    /** The source of properties for this document. */
+    type Properties: PropertiesMapping;
 
     /** Get the type name for this mapping, like `object` or `nested`. */
     fn data_type() -> &'static str {
@@ -63,7 +63,10 @@ Serialisation for the mapping of object properties.
 
 This trait is designed to be auto-derived and can't be usefully implemented manually.
 */
-pub trait PropertiesMapping {
+pub trait PropertiesMapping
+where
+    Self: Default,
+{
     /**
     The number of mapped property fields for this type.
 
@@ -97,8 +100,8 @@ where
     where
         S: Serializer,
     {
-        let mut state = try!(serializer.serialize_struct("properties", TMapping::props_len()));
-        try!(TMapping::serialize_props(&mut state));
+        let mut state = try!(serializer.serialize_struct("properties", TMapping::Properties::props_len()));
+        try!(TMapping::Properties::serialize_props(&mut state));
         state.end()
     }
 }
@@ -132,7 +135,7 @@ mod private {
     use serde::ser::SerializeStruct;
     use document::{DocumentType, IndexDocumentMapping};
     use private::field::{DocumentField, FieldMapping, FieldType};
-    use super::{DocumentFieldType, DocumentMapping, Properties, OBJECT_DATATYPE};
+    use super::{DocumentFieldType, DocumentMapping, PropertiesMapping, Properties, OBJECT_DATATYPE};
 
     #[derive(Default)]
     pub struct DocumentPivot;
@@ -146,7 +149,7 @@ mod private {
 
     impl<TDocument, TMapping> DocumentFieldType<TMapping> for TDocument
     where
-        TDocument: DocumentType<Mapping = TMapping>,
+        TDocument: DocumentType<Mapping = TMapping, Properties = TMapping::Properties>,
         TMapping: DocumentMapping,
     {
     }
@@ -171,7 +174,9 @@ mod private {
             S: Serializer,
         {
             let ty = <TMapping as DocumentMapping>::data_type();
-            let (is_object, has_props) = (ty == OBJECT_DATATYPE, TMapping::props_len() > 0);
+            let props_len = <TMapping as DocumentMapping>::Properties::props_len();
+
+            let (is_object, has_props) = (ty == OBJECT_DATATYPE, props_len > 0);
 
             let props_len = match (is_object, has_props) {
                 (true, true) => 5,

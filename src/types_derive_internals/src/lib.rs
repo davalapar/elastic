@@ -51,7 +51,15 @@ fn get_elastic_attr_name_value<'a>(name: &str, item: &'a syn::MacroInput) -> Opt
 }
 
 fn get_ident_from_lit(lit: &syn::Lit) -> Result<syn::Ident, &'static str> {
-    get_str_from_lit(lit).map(|s| syn::Ident::from(s))
+    get_str_from_lit(lit).map(Into::into)
+}
+
+fn get_tokens_from_lit<'a>(lit: &'a syn::Lit) -> Result<quote::Tokens, &'static str> {
+    get_str_from_lit(lit).map(|s| {
+        let mut tokens = quote::Tokens::new();
+        tokens.append(s);
+        tokens
+    })
 }
 
 fn get_str_from_lit<'a>(lit: &'a syn::Lit) -> Result<&'a str, &'static str> {
